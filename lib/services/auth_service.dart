@@ -3,22 +3,41 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class AuthService {
   final _supabase = Supabase.instance.client;
 
-  // Fungsi ini mengembalikan Map berisi id dan role_id jika sukses, atau null jika gagal
   Future<Map<String, dynamic>?> login(String username, String password) async {
     try {
-      // Memanggil fungsi 'login_user' di PostgreSQL via RPC
-      final response = await _supabase.rpc('login_user', params: {
-        'p_username': username,
-        'p_password': password,
-      });
+      final String dummyEmail = '$username@binkas.com'.toLowerCase();
 
-      // Jika response tidak kosong (ada data cocok)
-      if (response != null && (response as List).isNotEmpty) {
-        return response[0] as Map<String, dynamic>;
+      // 1. Eksekusi Login ke Supabase Auth (Gerbang Depan)
+      final AuthResponse res = await _supabase.auth.signInWithPassword(
+        email: dummyEmail,
+        password: password,
+      );
+
+      if (res.user == null) return null;
+
+      // 2. Tarik role_id DAN is_active dari tabel public.users
+      final userData = await _supabase
+          .from('users')
+          .select('id, username, role_id, is_active') // TAMBAHAN: Menarik status aktif
+          .eq('username', username)
+          .single();
+
+      // 3. LOGIKA PEMBLOKIRAN
+      if (userData['is_active'] == false) {
+        // Hancurkan token sesi seketika agar mereka tidak bisa menembus API RLS
+        await _supabase.auth.signOut();
+        throw Exception('Akun Anda telah dinonaktifkan oleh Owner.');
       }
-      return null; // Username atau password salah
+
+      return userData; 
+    } on AuthException catch (e) {
+      throw Exception(e.message);
     } catch (e) {
-      throw Exception('Terjadi kesalahan saat login: $e');
+      // Menangkap pesan error custom kita agar rapi ditampilkan ke SnackBar UI
+      if (e.toString().contains('dinonaktifkan')) {
+        throw Exception('Akun Anda telah dinonaktifkan oleh Owner.');
+      }
+      throw Exception('Terjadi kesalahan sistem: $e');
     }
   }
 }

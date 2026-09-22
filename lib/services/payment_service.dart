@@ -16,12 +16,14 @@ class PaymentService {
     required int viaPaymentId,
     required String namaCustomer,
     required String noHp,
-    int? bookingId, // Parameter baru untuk mendeteksi asal transaksi
+    int? bookingId,
   }) async {
     try {
-      String timestamp = DateTime.now().toIso8601String();
-      // Format nomor pesanan disesuaikan dengan contoh gambarmu
-      String namaNota = 'TRX-${DateTime.now().millisecondsSinceEpoch}'; 
+      String timestamp = DateTime.now().toUtc().toIso8601String(); 
+      // Membentuk nama nota dinamis berbasis waktu (tanpa ekstensi .pdf di sini agar mudah dibaca)
+      String namaNotaDasar = 'TRX-${DateTime.now().millisecondsSinceEpoch}'; 
+      // Menggabungkan dengan ekstensi untuk disimpan ke database
+      String namaNotaLengkap = '$namaNotaDasar.pdf';
 
       // 1. Simpan ke tabel Payments & ambil ID
       final paymentResponse = await _supabase.from('payments').insert({
@@ -31,7 +33,7 @@ class PaymentService {
         'jadwal': timestamp,
         'via_id': viaPaymentId,
         'total_harga': cart.grandTotalHarga,
-        'nama_nota': '$namaNota.pdf',
+        'nama_nota': namaNotaLengkap, // Disimpan ke database (misal: TRX-178999.pdf)
       }).select('id').single();
 
       int newPaymentId = paymentResponse['id'];
@@ -49,13 +51,13 @@ class PaymentService {
       // 3. Tembakkan isi keranjang
       await _supabase.from('order_details').insert(orderDetails);
 
-      // 4. Jika transaksi ini berasal dari Kalender Booking, selesaikan jadwalnya
+      // 4. Selesaikan jadwal jika dari Kalender
       if (bookingId != null) {
         await _supabase.from('bookings').update({'status': 'selesai'}).eq('id', bookingId);
       }
 
-      // 5. Cetak PDF dengan desain rapi
-      await _generatePdfDialog(cart, namaNota, namaCustomer, cart.grandTotalHarga);
+      // 5. Cetak PDF dengan membawa nama nota yang sudah ditetapkan
+      await _generatePdfDialog(cart, namaNotaLengkap, namaCustomer, cart.grandTotalHarga);
 
       // 6. Bersihkan keranjang
       cart.clearCart();
@@ -65,14 +67,14 @@ class PaymentService {
     }
   }
 
+  // Parameter 'namaNota' sekarang akan menerima nama lengkap beserta ekstensinya (TRX-xxx.pdf)
   Future<void> _generatePdfDialog(CartProvider cart, String namaNota, String namaCustomer, int total) async {
     final pdf = pw.Document();
     
-    final now = DateTime.now();
+    final now = DateTime.now(); 
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
     final tglString = '${now.day.toString().padLeft(2, '0')} ${months[now.month - 1]} ${now.year.toString().substring(2)} (${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')})';
 
-    // Memaksa ukuran TEPAT 8 cm (80mm) x 10.5 cm (105mm)
     final customFormat = PdfPageFormat(80 * PdfPageFormat.mm, 105 * PdfPageFormat.mm, marginAll: 4 * PdfPageFormat.mm);
 
     pdf.addPage(
@@ -91,25 +93,19 @@ class PaymentService {
               pw.Divider(thickness: 1, color: PdfColors.grey400),
               pw.SizedBox(height: 4),
 
-              // pw.Text('No. Order : $namaNota', style: const pw.TextStyle(fontSize: fSize)),
               if (namaCustomer.isNotEmpty) pw.Text('Pelanggan : $namaCustomer', style: const pw.TextStyle(fontSize: fSize)),
               pw.Text('Tanggal : $tglString', style: const pw.TextStyle(fontSize: fSize)),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 1, color: PdfColors.grey400),
               pw.SizedBox(height: 4),
 
-              // DAFTAR ITEM (MENAMPILKAN NAMA BARBER)
               pw.Expanded(
                 child: pw.ListView(
                   children: cart.items.map((item) => pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      // Nama Treatment dibuat bold agar membedakan dengan nama Barber
                       pw.Text(item.treatmentName, style: pw.TextStyle(fontSize: fSize, fontWeight: pw.FontWeight.bold)),
-                      
-                      // Menampilkan nama Barber (Ukuran sedikit lebih kecil dan warna abu-abu gelap)
                       pw.Text('Barber: ${item.barberName}', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
-                      
                       pw.Row(
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
@@ -118,7 +114,7 @@ class PaymentService {
                           pw.Text('Rp${item.harga * item.jumlah}', style: const pw.TextStyle(fontSize: fSize)),
                         ]
                       ),
-                      pw.SizedBox(height: 4), // Spasi antar item
+                      pw.SizedBox(height: 4), 
                     ]
                   )).toList(),
                 )
@@ -149,11 +145,10 @@ class PaymentService {
       ),
     );
 
-    final String fileName = 'Nota_${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}.pdf';
-
+    // Menerapkan nama nota (dari database) sebagai nama file PDF yang dicetak
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: fileName, // Menerapkan nama file yang baru
+      name: namaNota, 
     );
   }
 }

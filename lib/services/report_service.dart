@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:intl/intl.dart';
 
 class ReportService {
   final _supabase = Supabase.instance.client;
@@ -44,10 +45,13 @@ class ReportService {
     }
   }
 
-  // FUNGSI BARU: MEMBUAT LAPORAN PDF
+  // FUNGSI BARU: MEMBUAT LAPORAN PDF (DENGAN FORMAT RUPIAH)
   Future<void> generateReportPdf(Map<String, dynamic> data, DateTime start, DateTime end, String type) async {
     final pdf = pw.Document();
     final dateStr = '${start.day}/${start.month}/${start.year} - ${end.day}/${end.month}/${end.year}';
+    
+    // ALAT FORMAT RUPIAH (Otomatis memberi titik setiap 3 angka)
+    final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
     
     List<List<String>> tableData = [];
     List<String> headers = [];
@@ -55,7 +59,6 @@ class ReportService {
     if (type == 'Pemasukan') {
       headers = ['No', 'Tanggal', 'Pelanggan', 'Layanan', 'Barber', 'Nominal'];
       final List payments = data['detail_pemasukan'];
-      // Urutkan berdasarkan tanggal terlama ke terbaru (kronologis)
       var sortedPayments = List.from(payments)..sort((a, b) => DateTime.parse(a['jadwal']).compareTo(DateTime.parse(b['jadwal'])));
       
       int i = 1;
@@ -65,9 +68,9 @@ class ReportService {
         
         List details = p['order_details'];
         String layanan = details.map((d) => d['treatments']['treatment']).join(', ');
-        String barber = details.map((d) => d['barbers']['users']['username']).toSet().join(', '); // toSet menghindari nama ganda
+        String barber = details.map((d) => d['barbers']['users']['username']).toSet().join(', ');
         
-        tableData.add([(i++).toString(), tgl, p['nama'] ?? '-', layanan, barber, 'Rp ${p['total_harga']}']);
+        tableData.add([(i++).toString(), tgl, p['nama'] ?? '-', layanan, barber, formatRp.format(p['total_harga'])]);
       }
     } else if (type == 'Pengeluaran') {
       headers = ['No', 'Tanggal', 'Kategori', 'Keterangan', 'Nominal'];
@@ -78,10 +81,10 @@ class ReportService {
       for (var e in sortedExpenses) {
         final date = DateTime.parse(e['tanggal']).toLocal();
         final tgl = '${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}';
-        tableData.add([(i++).toString(), tgl, e['kategori'], e['keterangan'] ?? '-', 'Rp ${e['harga']}']);
+        
+        tableData.add([(i++).toString(), tgl, e['kategori'], e['keterangan'] ?? '-', formatRp.format(e['harga'])]);
       }
     } else {
-      // TIPE 'SEMUA' (GABUNGAN BUKU KAS)
       headers = ['No', 'Tanggal', 'Keterangan', 'Pemasukan', 'Pengeluaran'];
       List<Map<String, dynamic>> combined = [];
       
@@ -102,7 +105,6 @@ class ReportService {
         });
       }
       
-      // Urutkan gabungan transaksi secara kronologis
       combined.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
       
       int i = 1;
@@ -111,8 +113,8 @@ class ReportService {
         final tgl = '${date.day.toString().padLeft(2,'0')}/${date.month.toString().padLeft(2,'0')}/${date.year}';
         tableData.add([
           (i++).toString(), tgl, item['desc'], 
-          item['in'] > 0 ? 'Rp ${item['in']}' : '-',
-          item['out'] > 0 ? 'Rp ${item['out']}' : '-'
+          item['in'] > 0 ? formatRp.format(item['in']) : '-',
+          item['out'] > 0 ? formatRp.format(item['out']) : '-'
         ]);
       }
     }
@@ -142,7 +144,6 @@ class ReportService {
             ),
             
             pw.SizedBox(height: 24),
-            // BAGIAN RINGKASAN TOTAL DI BAWAH TABEL
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.end,
               children: [
@@ -153,10 +154,11 @@ class ReportService {
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      if (type == 'Pemasukan' || type == 'Semua') pw.Text('Total Pemasukan : Rp ${data['pemasukan']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                      if (type == 'Pengeluaran' || type == 'Semua') pw.Text('Total Pengeluaran: Rp ${data['pengeluaran']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      // PENERAPAN FORMAT RUPIAH DI BAGIAN TOTAL KESELURUHAN
+                      if (type == 'Pemasukan' || type == 'Semua') pw.Text('Total Pemasukan : ${formatRp.format(data['pemasukan'])}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      if (type == 'Pengeluaran' || type == 'Semua') pw.Text('Total Pengeluaran: ${formatRp.format(data['pengeluaran'])}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                       if (type == 'Semua') pw.Divider(),
-                      if (type == 'Semua') pw.Text('Laba Bersih       : Rp ${data['laba_bersih']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                      if (type == 'Semua') pw.Text('Laba Bersih       : ${formatRp.format(data['laba_bersih'])}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
                     ]
                   )
                 )
@@ -167,7 +169,6 @@ class ReportService {
       )
     );
     
-    // FORMAT NAMA FILE OTOMATIS
     final now = DateTime.now();
     final String fileName = 'Laporan_${type}_${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}_${now.hour.toString().padLeft(2, '0')}-${now.minute.toString().padLeft(2, '0')}-${now.second.toString().padLeft(2, '0')}.pdf';
 

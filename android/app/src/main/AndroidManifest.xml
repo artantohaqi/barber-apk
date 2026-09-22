@@ -1,6 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Wajib untuk koneksi database Supabase -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Wajib untuk menyimpan file laporan PDF ke memori HP -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    
     <application
-        android:label="barber_apk"
+        android:label="BINKAS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

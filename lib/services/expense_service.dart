@@ -19,7 +19,7 @@ class ExpenseService {
   Future<void> addExpense(String kategori, int harga, String keterangan) async {
     try {
       await _supabase.from('expenses').insert({
-        'tanggal': DateTime.now().toIso8601String(),
+        'tanggal': DateTime.now().toUtc().toIso8601String(),
         'kategori': kategori,
         'harga': harga,
         'keterangan': keterangan,

@@ -25,13 +25,35 @@ class UserService {
 
   Future<void> createUser(String username, String password, int roleId) async {
     try {
+      // 1. TRIK KLIEN BAYANGAN (GHOST CLIENT) DENGAN BYPASS PKCE
+      final ghostClient = SupabaseClient(
+        'https://azfanpxgsesbczyxdxob.supabase.co',
+        'sb_publishable_YukE_NKrMdF-sZfLW2elvQ_J6G4JN2F',
+        authOptions: const AuthClientOptions( // PERBAIKAN: Gunakan AuthClientOptions
+          authFlowType: AuthFlowType.implicit, 
+        ),
+      );
+
+      final String dummyEmail = '$username@binkas.com'.toLowerCase();
+
+      // 2. Tembakkan data pendaftaran ke Supabase Auth
+      await ghostClient.auth.signUp(
+        email: dummyEmail,
+        password: password,
+      );
+
+      // 3. Segera hancurkan klien bayangan
+      ghostClient.dispose();
+
+      // 4. Lanjutkan memasukkan profil ke tabel public.users menggunakan Klien Utama
       await _supabase.rpc('create_new_user', params: {
         'p_username': username,
-        'p_password': password,
+        'p_password': password, 
         'p_role_id': roleId,
       });
+      
     } catch (e) {
-      throw Exception('Gagal membuat user: $e');
+      throw Exception('Gagal membuat pegawai baru: $e');
     }
   }
 
@@ -71,6 +93,60 @@ class UserService {
       }
     } catch (e) {
       throw Exception('Gagal mengubah status: $e');
+    }
+  }
+
+  // FITUR BARU: Menghitung Total Komisi Barber Bulan Ini (Logika Filter Dart)
+  Future<Map<String, dynamic>> getBarberCommissionThisMonth(int userId) async {
+    try {
+      final now = DateTime.now();
+
+      // 1. Cari ID Barber yang terikat dengan User ID ini
+      final barberData = await _supabase.from('barbers').select('id').eq('user_id', userId).maybeSingle();
+      if (barberData == null) return {'total': 0, 'details': []};
+      
+      // 2. Tarik riwayat layanan TANPA filter inner join Supabase untuk menghindari error relasi
+      final response = await _supabase
+          .from('order_details')
+          .select('jumlah, treatments(treatment, komisi), payments(jadwal)')
+          .eq('barber_id', barberData['id']);
+
+      int totalKomisi = 0;
+      List<Map<String, dynamic>> details = [];
+
+      for (var row in response) {
+        // Abaikan jika data pembayaran tidak ditemukan
+        if (row['payments'] == null) continue;
+
+        final jadwalStr = row['payments']['jadwal'];
+        final jadwalDate = DateTime.parse(jadwalStr).toLocal();
+
+        // 3. Filter Manual: Pastikan transaksi terjadi di bulan dan tahun yang sama dengan hari ini
+        if (jadwalDate.month == now.month && jadwalDate.year == now.year) {
+          final treatment = row['treatments']['treatment'];
+          // Gunakan fallback ke 0 atau 1 jika nilainya kebetulan kosong di database
+          final komisiSatuan = row['treatments']['komisi'] ?? 0;
+          final qty = row['jumlah'] ?? 1;
+          final subtotal = (komisiSatuan as int) * (qty as int);
+
+          totalKomisi += subtotal;
+          details.add({
+            'tanggal': jadwalStr,
+            'treatment': treatment,
+            'qty': qty,
+            'subtotal': subtotal,
+          });
+        }
+      }
+
+      // 4. Urutkan rincian komisi dari transaksi yang paling baru (kronologis)
+      details.sort((a, b) => DateTime.parse(b['tanggal']).compareTo(DateTime.parse(a['tanggal'])));
+
+      return {'total': totalKomisi, 'details': details};
+    } catch (e) {
+      // Jika masih ada error, cetak ke terminal agar kita tahu penyebabnya
+      print('DEBUG ERROR KOMISI: $e');
+      return {'total': 0, 'details': []};
     }
   }
 }

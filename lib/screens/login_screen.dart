@@ -17,6 +17,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   void _prosesLogin() async {
+    if (_usernameController.text.trim().isEmpty || _passwordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username dan Password wajib diisi!')));
+      return;
+    }
+
     setState(() => _isLoading = true);
     
     try {
@@ -29,22 +34,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (user != null) {
         int roleId = user['role_id'];
-        if (!mounted) return;
         
         // Hancurkan layar login dan ganti dengan layar Dashboard
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => DashboardScreen(roleId: roleId)),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Username atau Password salah!')),
-        );
       }
     } catch (e) {
       if (!mounted) return;
+      // Menampilkan pesan error spesifik, menghapus tulisan 'Exception:' bawaan Dart
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -55,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -72,15 +73,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Username',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,
-                obscureText: true, // Menyembunyikan password
+                obscureText: true, 
                 decoration: const InputDecoration(
                   labelText: 'Password',
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
                 ),
               ),
               const SizedBox(height: 24),
@@ -88,10 +91,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey,
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: _isLoading ? null : _prosesLogin,
                   child: _isLoading 
-                      ? const CircularProgressIndicator()
-                      : const Text('MASUK'),
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('MASUK', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
               ),
             ],

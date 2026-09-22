@@ -18,7 +18,6 @@ class _PosScreenState extends State<PosScreen> {
   List<Map<String, dynamic>> _treatments = [];
   
   Map<String, dynamic>? _selectedBarber;
-  // Menggunakan List untuk menampung banyak treatment yang dicentang
   final List<Map<String, dynamic>> _checkedTreatments = [];
   
   bool _isLoading = true;
@@ -26,6 +25,10 @@ class _PosScreenState extends State<PosScreen> {
   @override
   void initState() {
     super.initState();
+    // PERBAIKAN: Bersihkan keranjang saat layar kasir baru dibuka (mencegah data lama tertinggal)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<CartProvider>(context, listen: false).clearCart();
+    });
     _loadData();
   }
 
@@ -59,7 +62,6 @@ class _PosScreenState extends State<PosScreen> {
 
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
     
-    // Looping semua layanan yang dicentang dan masukkan ke RAM
     for (var treatment in _checkedTreatments) {
       cartProvider.addItem(CartItem(
         barberId: _selectedBarber!['id'],
@@ -71,7 +73,6 @@ class _PosScreenState extends State<PosScreen> {
       ));
     }
 
-    // Bersihkan centangan setelah berhasil ditambahkan ke keranjang
     setState(() {
       _checkedTreatments.clear();
     });
@@ -87,7 +88,6 @@ class _PosScreenState extends State<PosScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // --- BAGIAN 1: INPUT BARBER & CHECKBOX LAYANAN ---
             InputDecorator(
               decoration: const InputDecoration(labelText: '1. Pilih Barber', border: OutlineInputBorder()),
               child: DropdownButtonHideUnderline(
@@ -102,14 +102,13 @@ class _PosScreenState extends State<PosScreen> {
             ),
             const SizedBox(height: 16),
             
-            // Area Checkbox yang bisa di-scroll jika layanan sangat banyak
             const Align(
               alignment: Alignment.centerLeft,
               child: Text('2. Pilih Layanan (Bisa lebih dari satu):', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 8),
             Container(
-              height: 140, // Membatasi tinggi agar tidak menelan daftar keranjang di bawahnya
+              height: 140, 
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade400),
                 borderRadius: BorderRadius.circular(8),
@@ -153,7 +152,6 @@ class _PosScreenState extends State<PosScreen> {
             ),
             const Divider(height: 32, thickness: 2),
 
-            // --- BAGIAN 2: DAFTAR KERANJANG (REAL-TIME) ---
             const Align(
               alignment: Alignment.centerLeft, 
               child: Text('3. Daftar Tagihan:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))
@@ -186,7 +184,6 @@ class _PosScreenState extends State<PosScreen> {
               ),
             ),
 
-            // --- BAGIAN 3: TOTAL & LANJUT BAYAR ---
             Consumer<CartProvider>(
               builder: (context, cart, child) {
                 return Container(

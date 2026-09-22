@@ -34,7 +34,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
+      builder: (dialogContext) { // PERBAIKAN: Pisahkan penamaan konteks dialog
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
             title: const Text('Catat Pengeluaran'),
@@ -62,7 +62,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: isSaving ? null : () => Navigator.pop(context),
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext), // PERBAIKAN: Gunakan dialogContext
                 child: const Text('Batal'),
               ),
               ElevatedButton(
@@ -78,12 +78,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             int.parse(hargaCtrl.text.trim()),
                             keteranganCtrl.text.trim(),
                           );
-                          if (!context.mounted) return;
-                          Navigator.pop(context);
+                          if (!dialogContext.mounted) return; // PERBAIKAN: Periksa dialogContext untuk mencegah Async Gap
+                          Navigator.pop(dialogContext);
                           _refreshData();
                         } catch (e) {
                           setDialogState(() => isSaving = false);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text('Error: $e')));
+                          }
                         }
                       },
                 child: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Simpan'),
