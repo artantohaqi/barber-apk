@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../services/dashboard_service.dart';
 
 import 'user_management_screen.dart';
@@ -79,7 +81,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red), 
             title: const Text('Keluar', style: TextStyle(color: Colors.red)), 
-            onTap: () => Navigator.pushReplacementNamed(context, '/')
+            onTap: () async {
+              // 1. Hancurkan tiket sesi secara permanen di mesin Supabase
+              await Supabase.instance.client.auth.signOut();
+              
+              if (!context.mounted) return;
+              
+              // 2. Setelah tiket hancur, baru kembalikan pengguna ke rute awal (Splash Screen)
+              // Splash Screen akan melihat tiket kosong dan melempar pengguna ke Login Screen
+              Navigator.pushReplacementNamed(context, '/');
+            }
           ),
         ],
       ),
