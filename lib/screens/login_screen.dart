@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const Icon(Icons.cut, size: 80, color: Colors.blueGrey),
               const SizedBox(height: 16),
               const Text(
-                'BINKAS POS',
+                'BINTANGSS BARBERSHOP',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 32),

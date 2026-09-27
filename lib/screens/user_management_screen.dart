@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/user_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -45,10 +44,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. KOLOM USERNAME (Terkunci saat mode Edit)
                   TextField(
                     controller: usernameCtrl,
-                    readOnly: isEdit, // Mematikan input keyboard jika sedang mengedit
+                    readOnly: isEdit, 
                     decoration: InputDecoration(
                       labelText: 'Username',
                       filled: isEdit,
@@ -57,8 +55,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // 2. KOLOM PASSWORD (Berubah menjadi informasi visual saat Edit)
                   if (isEdit)
                     TextField(
                       readOnly: true,
@@ -69,7 +65,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         filled: true,
                         fillColor: Colors.grey.shade200,
                         suffixIcon: const Icon(Icons.security, color: Colors.grey),
-                        helperText: 'Sandi dienkripsi oleh sistem. Lakukan Reset via Dasbor Supabase jika lupa.',
+                        helperText: 'Sandi dienkripsi oleh sistem. Jika lupa Reset di Dasbor Supabase',
                         helperMaxLines: 2,
                       ),
                     )
@@ -80,8 +76,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       obscureText: true,
                     ),
                   const SizedBox(height: 16),
-                  
-                  // 3. KOLOM ROLE (Satu-satunya yang bisa diubah saat Edit)
                   DropdownButtonFormField<int>(
                     initialValue: selectedRole, 
                     decoration: const InputDecoration(labelText: 'Jabatan'),
@@ -149,7 +143,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               final bool isActive = user['is_active'];
               final bool isBarber = user['role_id'] == 3;
               
-              // Widget Trailing (Tombol Switch & Edit)
               Widget trailingActions = Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -181,30 +174,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                // JIKA DIA BARBER, GUNAKAN EXPANSION TILE (BISA DI-DROPDOWN)
-                child: isBarber 
-                  ? ExpansionTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isActive ? Colors.blueGrey : Colors.grey,
-                        child: const Icon(Icons.cut, color: Colors.white, size: 20),
-                      ),
-                      title: Text(user['username'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough)),
-                      subtitle: Text('Jabatan: $roleName'),
-                      trailing: trailingActions,
-                      children: [
-                        _BarberCommissionDetail(userId: user['id'], userService: _userService),
-                      ],
-                    )
-                  // JIKA OWNER ATAU KASIR, TETAP GUNAKAN LIST TILE BIASA
-                  : ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: isActive ? Colors.blueGrey : Colors.grey,
-                        child: Icon(roleName == 'Owner' ? Icons.star : Icons.point_of_sale, color: Colors.white, size: 20),
-                      ),
-                      title: Text(user['username'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough)),
-                      subtitle: Text('Jabatan: $roleName'),
-                      trailing: trailingActions,
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isActive ? Colors.blueGrey : Colors.grey,
+                    child: Icon(
+                      roleName == 'Owner' ? Icons.star : (isBarber ? Icons.cut : Icons.point_of_sale), 
+                      color: Colors.white, 
+                      size: 20
                     ),
+                  ),
+                  title: Text(user['username'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough)),
+                  subtitle: Text('Jabatan: $roleName'),
+                  trailing: trailingActions,
+                ),
               );
             },
           );
@@ -213,84 +195,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       floatingActionButton: widget.roleId == 1
           ? FloatingActionButton(onPressed: () => _showFormDialog(), child: const Icon(Icons.add))
           : null,
-    );
-  }
-}
-
-// COMPONENT BARU: Widget Rincian Komisi di dalam Dropdown
-class _BarberCommissionDetail extends StatelessWidget {
-  final int userId;
-  final UserService userService;
-  const _BarberCommissionDetail({required this.userId, required this.userService});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: userService.getBarberCommissionThisMonth(userId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()));
-        }
-        if (!snapshot.hasData || snapshot.data!['details'].isEmpty) {
-          return const Padding(padding: EdgeInsets.all(16), child: Text('Belum ada riwayat komisi bulan ini.', style: TextStyle(color: Colors.grey)));
-        }
-
-        final data = snapshot.data!;
-        final details = data['details'] as List;
-        final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-
-        return Container(
-          color: Colors.blueGrey.shade50,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Rincian Komisi Bulan Ini:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-              const SizedBox(height: 12),
-              
-              // Daftar Treatment yang sudah dikerjakan
-              ...details.map((d) {
-                final tgl = DateTime.parse(d['tanggal']).toLocal();
-                // FORMAT TANGGAL DAN JAM SECARA SPESIFIK
-                final String waktuTransaksi = '${tgl.day.toString().padLeft(2, '0')}/${tgl.month.toString().padLeft(2, '0')} (${tgl.hour.toString().padLeft(2, '0')}:${tgl.minute.toString().padLeft(2, '0')})';
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start, // Agar teks sejajar rapi jika panjang
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // MENAMPILKAN TANGGAL DAN JAM
-                            Text(waktuTransaksi, style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 2),
-                            // MENAMPILKAN NAMA TREATMENT DAN QTY
-                            Text('${d['treatment']} (x${d['qty']})', style: const TextStyle(fontSize: 14)),
-                          ],
-                        ),
-                      ),
-                      // MENAMPILKAN SUBTOTAL KOMISI
-                      Text(formatRp.format(d['subtotal']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
-                    ],
-                  ),
-                );
-              }),
-              
-              const Divider(thickness: 1.5),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Komisi Diterima', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text(formatRp.format(data['total']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

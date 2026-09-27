@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/cart_provider.dart';
 import '../services/payment_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String? initialNama;
   final String? initialNoHp;
-  final int? bookingId; // ID Kalender (jika ada)
+  final int? bookingId; 
 
   const CheckoutScreen({super.key, this.initialNama, this.initialNoHp, this.bookingId});
 
@@ -29,7 +30,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Mengisi otomatis form jika data dikirim dari Kalender
     _namaCtrl = TextEditingController(text: widget.initialNama ?? '');
     _noHpCtrl = TextEditingController(text: widget.initialNoHp ?? '');
     _loadViaPayments();
@@ -66,7 +66,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         viaPaymentId: _selectedViaId!,
         namaCustomer: _namaCtrl.text.trim(),
         noHp: _noHpCtrl.text.trim(),
-        bookingId: widget.bookingId, // Kirim ID jadwal agar dihapus setelah lunas
+        bookingId: widget.bookingId, 
       );
 
       if (!mounted) return;
@@ -84,6 +84,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+    // FORMATTER RUPIAH DENGAN PEMISAH TITIK RIBUAN
+    final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Penyelesaian Transaksi')),
@@ -105,7 +108,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   child: Column(
                     children: [
                       const Text('TOTAL TAGIHAN', style: TextStyle(color: Colors.white, fontSize: 16)),
-                      Text('Rp ${cart.grandTotalHarga}', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
+                      // PENERAPAN FORMAT RUPIAH PADA TOTAL TAGIHAN
+                      Text(
+                        formatRp.format(cart.grandTotalHarga), 
+                        style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)
+                      ),
                     ],
                   ),
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart'; // TAMBAHAN: Untuk format titik ribuan
 import '../services/expense_service.dart';
 
 class ExpenseScreen extends StatefulWidget {
@@ -12,6 +13,9 @@ class ExpenseScreen extends StatefulWidget {
 class _ExpenseScreenState extends State<ExpenseScreen> {
   final ExpenseService _expenseService = ExpenseService();
   late Future<List<Map<String, dynamic>>> _expensesFuture;
+  
+  // INISIALISASI FORMATTER RUPIAH
+  final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
   @override
   void initState() {
@@ -25,23 +29,50 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     });
   }
 
-  void _showAddDialog() {
-    final kategoriCtrl = TextEditingController();
-    final hargaCtrl = TextEditingController();
-    final keteranganCtrl = TextEditingController();
+  // FUNGSI BARU: Dialog gabungan untuk Tambah & Edit
+  void _showFormDialog({Map<String, dynamic>? existingExpense}) {
+    final isEdit = existingExpense != null;
+    final kategoriCtrl = TextEditingController(text: isEdit ? existingExpense['kategori'] : '');
+    final hargaCtrl = TextEditingController(text: isEdit ? existingExpense['harga'].toString() : '');
+    final keteranganCtrl = TextEditingController(text: isEdit ? existingExpense['keterangan'] : '');
+    
+    // Inisialisasi tanggal: pakai tanggal lama jika mode Edit, pakai hari ini jika mode Tambah
+    DateTime selectedDate = isEdit ? DateTime.parse(existingExpense['tanggal']).toLocal() : DateTime.now();
     bool isSaving = false;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) { // PERBAIKAN: Pisahkan penamaan konteks dialog
+      builder: (dialogContext) { 
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Catat Pengeluaran'),
+            title: Text(isEdit ? 'Edit Pengeluaran' : 'Catat Pengeluaran'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // TOMBOL PILIH TANGGAL
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Tanggal Pengeluaran', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    subtitle: Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    trailing: const Icon(Icons.calendar_month, color: Colors.blueGrey),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2024),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        // Gabungkan dengan jam saat ini agar tidak tumpang tindih urutan waktunya
+                        final now = DateTime.now();
+                        setDialogState(() {
+                          selectedDate = DateTime(picked.year, picked.month, picked.day, now.hour, now.minute, now.second);
+                        });
+                      }
+                    },
+                  ),
                   TextField(
                     controller: kategoriCtrl,
                     decoration: const InputDecoration(labelText: 'Kategori (Misal: Listrik, Air, Gaji)'),
@@ -62,7 +93,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: isSaving ? null : () => Navigator.pop(dialogContext), // PERBAIKAN: Gunakan dialogContext
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Batal'),
               ),
               ElevatedButton(
@@ -73,12 +104,24 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
                         setDialogState(() => isSaving = true);
                         try {
-                          await _expenseService.addExpense(
-                            kategoriCtrl.text.trim(),
-                            int.parse(hargaCtrl.text.trim()),
-                            keteranganCtrl.text.trim(),
-                          );
-                          if (!dialogContext.mounted) return; // PERBAIKAN: Periksa dialogContext untuk mencegah Async Gap
+                          if (isEdit) {
+                            await _expenseService.editExpense(
+                              existingExpense['id'],
+                              kategoriCtrl.text.trim(),
+                              int.parse(hargaCtrl.text.trim()),
+                              keteranganCtrl.text.trim(),
+                              selectedDate,
+                            );
+                          } else {
+                            await _expenseService.addExpense(
+                              kategoriCtrl.text.trim(),
+                              int.parse(hargaCtrl.text.trim()),
+                              keteranganCtrl.text.trim(),
+                              selectedDate,
+                            );
+                          }
+                          
+                          if (!dialogContext.mounted) return;
                           Navigator.pop(dialogContext);
                           _refreshData();
                         } catch (e) {
@@ -95,6 +138,34 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         });
       },
     );
+  }
+
+  // FUNGSI BARU: Konfirmasi penghapusan data
+  void _deleteExpense(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Data?'),
+        content: const Text('Pengeluaran ini akan dihapus secara permanen dari laporan keuangan.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true), 
+            child: const Text('Hapus')
+          ),
+        ],
+      )
+    );
+
+    if (confirm == true) {
+      try {
+        await _expenseService.deleteExpense(id);
+        _refreshData();
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   @override
@@ -123,7 +194,27 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   ),
                   title: Text(item['kategori'], style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text('${tanggal.day}/${tanggal.month}/${tanggal.year} | ${item['keterangan']}'),
-                  trailing: Text('Rp ${item['harga']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                  // PERBAIKAN TRAILING: Memuat Harga (Dengan format Rp), Tombol Edit, dan Tombol Hapus
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(formatRp.format(item['harga']), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 20),
+                        onPressed: () => _showFormDialog(existingExpense: item),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                        onPressed: () => _deleteExpense(item['id']),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -131,7 +222,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
+        onPressed: () => _showFormDialog(), // Panggil fungsi gabungan tanpa parameter (mode Tambah)
         backgroundColor: Colors.redAccent,
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import '../services/dashboard_service.dart';
 
-// Import Layar-layar kita
 import 'user_management_screen.dart';
 import 'via_payment_screen.dart';
 import 'treatment_screen.dart';
@@ -45,7 +45,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Komponen Navigasi Drawer Kiri
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       child: ListView(
@@ -63,34 +62,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          
-          // 1. MANAJEMEN USER (Owner & Kasir)
           if (widget.roleId == 1 || widget.roleId == 2)
             ListTile(leading: const Icon(Icons.admin_panel_settings), title: const Text('Manajemen User'), onTap: () => _nav(context, UserManagementScreen(roleId: widget.roleId))),
-          
-          // 2. METODE PEMBAYARAN (HANYA OWNER 1)
           if (widget.roleId == 1)
             ListTile(leading: const Icon(Icons.account_balance_wallet), title: const Text('Metode Pembayaran'), onTap: () => _nav(context, const ViaPaymentScreen())),
-          
-          // 3. LAYANAN & HARGA (HANYA OWNER 1)
           if (widget.roleId == 1)
             ListTile(leading: const Icon(Icons.cut), title: const Text('Layanan & Harga'), onTap: () => _nav(context, const TreatmentScreen())),
-          
-          // 4. KASIR / PAYMENT (Owner & Kasir)
           if (widget.roleId == 1 || widget.roleId == 2)
             ListTile(leading: const Icon(Icons.point_of_sale), title: const Text('Kasir / Payment'), onTap: () => _nav(context, const PosScreen())),
-          
-          // 5. JADWAL BOOKING (Semua Role: 1, 2, 3)
           ListTile(leading: const Icon(Icons.calendar_month), title: const Text('Jadwal Booking'), onTap: () => _nav(context, BookingScreen(roleId: widget.roleId))),
-          
-          // 6. PENGELUARAN (Owner & Kasir)
           if (widget.roleId == 1 || widget.roleId == 2)
             ListTile(leading: const Icon(Icons.money_off), title: const Text('Pengeluaran'), onTap: () => _nav(context, const ExpenseScreen())),
-          
-          // 7. LAPORAN KEUANGAN (HANYA OWNER 1)
           if (widget.roleId == 1)
             ListTile(leading: const Icon(Icons.analytics), title: const Text('Laporan Keuangan'), onTap: () => _nav(context, const ReportScreen())),
-
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red), 
@@ -103,19 +87,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _nav(BuildContext context, Widget screen) {
-    Navigator.pop(context); // Tutup drawer
-    Navigator.push(context, MaterialPageRoute(builder: (context) => screen)).then((_) => _loadDashboard()); // Refresh dashboard saat kembali
+    Navigator.pop(context);
+    Navigator.push(context, MaterialPageRoute(builder: (context) => screen)).then((_) => _loadDashboard());
   }
 
   @override
   Widget build(BuildContext context) {
+    // INISIALISASI FORMATTER RUPIAH
+    final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blueGrey,
         foregroundColor: Colors.white,
       ),
-      drawer: _buildDrawer(context), // DRAWER DIPASANG DISINI
+      drawer: _buildDrawer(context),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -125,13 +112,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   const Text('Ringkasan Hari Ini', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  
-                  // GRID METRIK HARI INI
                   Row(
                     children: [
-                      Expanded(child: _buildMetricCard('Pemasukan', 'Rp ${_metrics!['incomeToday']}', Colors.green, Icons.trending_up)),
+                      // PERBAIKAN: Format angka pemasukan dan pengeluaran
+                      Expanded(child: _buildMetricCard('Pemasukan', formatRp.format(_metrics!['incomeToday']), Colors.green, Icons.trending_up)),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildMetricCard('Pengeluaran', 'Rp ${_metrics!['expenseToday']}', Colors.red, Icons.trending_down)),
+                      Expanded(child: _buildMetricCard('Pengeluaran', formatRp.format(_metrics!['expenseToday']), Colors.red, Icons.trending_down)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -140,8 +126,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 32),
                   const Text('Trend Pemasukan Bulan Ini', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  
-                  // GRAFIK FL_CHART
                   Container(
                     height: 250,
                     padding: const EdgeInsets.all(16),
@@ -152,8 +136,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 32),
                   const Text('Layanan Terpopuler (Minggu Ini)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-
-                  // DAFTAR TREATMENT POPULER
                   ...(_metrics!['popularTreatments'] as List<MapEntry<String, int>>).map((entry) => 
                     ListTile(
                       leading: const Icon(Icons.star, color: Colors.orange),
@@ -189,12 +171,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Konfigurasi LineChart
   Widget _buildChart(Map<int, int> trendData) {
     if (trendData.isEmpty) return const Center(child: Text('Belum ada data bulan ini'));
 
     List<FlSpot> spots = trendData.entries.map((e) => FlSpot(e.key.toDouble(), e.value.toDouble())).toList();
-    spots.sort((a, b) => a.x.compareTo(b.x)); // Urutkan berdasarkan tanggal
+    spots.sort((a, b) => a.x.compareTo(b.x));
 
     return LineChart(
       LineChartData(
