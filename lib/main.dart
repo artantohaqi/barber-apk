@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'screens/login_screen.dart';
+// import 'screens/login_screen.dart';
+import 'screens/splash_screen.dart';
 // import 'screens/dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import 'providers/cart_provider.dart';
@@ -39,7 +40,7 @@ class MyApp extends StatelessWidget {
       // Mendaftarkan rute layar
       initialRoute: '/',
       routes: {
-        '/': (context) => const LoginScreen(),
+        '/': (context) => const SplashScreen(),
       },
     );
   }
