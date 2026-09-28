@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/report_service.dart';
 import '../services/pos_service.dart'; 
-import '../services/payment_service.dart'; // Diperlukan untuk mengambil Via Payment
+import '../services/payment_service.dart'; 
 import '../widgets/pdf_service.dart';
 
 class ReportScreen extends StatefulWidget {
@@ -89,7 +89,49 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- DIALOG MASTER: Edit Info Transaksi (Tanggal, Jam, Nama, Via) ---
+  // --- FUNGSI BARU (DIKEMBALIKAN): Dialog Download Laporan PDF ---
+  void _showDownloadDialog() {
+    if (_laporanData == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Pilih Jenis Laporan', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.trending_up, color: Colors.green),
+                title: const Text('Hanya Pemasukan'),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  PdfService.generateLaporan(data: _laporanData!, start: _selectedRange.start, end: _selectedRange.end, type: 'Pemasukan');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.trending_down, color: Colors.red),
+                title: const Text('Hanya Pengeluaran'),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  PdfService.generateLaporan(data: _laporanData!, start: _selectedRange.start, end: _selectedRange.end, type: 'Pengeluaran');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.account_balance, color: Colors.blueGrey),
+                title: const Text('Semua (Buku Kas)'),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  PdfService.generateLaporan(data: _laporanData!, start: _selectedRange.start, end: _selectedRange.end, type: 'Semua');
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showEditHeaderDialog(Map<String, dynamic> payment) {
     final namaCtrl = TextEditingController(text: payment['nama'] == 'Walk-in' ? '' : payment['nama']);
     DateTime selectedDateTime = DateTime.parse(payment['jadwal']).toLocal();
@@ -183,7 +225,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- HAPUS TRANSAKSI PENUH ---
   void _deleteTransactionFull(int paymentId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -211,7 +252,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // --- DIALOG ITEM: Tambah & Edit Layanan ---
   void _showItemDialog({required int paymentId, Map<String, dynamic>? detail}) {
     final isEdit = detail != null;
     int selectedBarberId = isEdit ? detail['barber_id'] : (_activeBarbers.isNotEmpty ? _activeBarbers[0]['id'] : 0);
@@ -285,7 +325,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- HAPUS ITEM LAYANAN ---
   void _deleteItem(int paymentId, int detailId, int detailCount) async {
     if (detailCount <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tidak bisa menghapus layanan terakhir. Hapus transaksinya secara langsung!')));
@@ -314,7 +353,6 @@ class _ReportScreenState extends State<ReportScreen> {
       }
   }
 
-  // --- TAB PEMASUKAN UTAMA ---
   Widget _buildTabPemasukan() {
     List payments = _laporanData!['detail_pemasukan'];
     int totalKomisiBarber = 0, totalTransaksiBarber = 0;
@@ -384,6 +422,8 @@ class _ReportScreenState extends State<ReportScreen> {
                   final p = payments[i];
                   final List details = p['order_details'];
                   final date = DateTime.parse(p['jadwal']).toLocal();
+
+                  String viaName = p['via_payments'] != null ? p['via_payments']['via'] : '-';
                   
                   return Card(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -397,10 +437,24 @@ class _ReportScreenState extends State<ReportScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2,'0')}'),
-                          Text('Nota: ${p['nama_nota'] ?? '-'}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  border: Border.all(color: Colors.green),
+                                  borderRadius: BorderRadius.circular(4)
+                                ),
+                                child: Text('Via: $viaName', style: const TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text('Nota: ${p['nama_nota'] ?? '-'}', style: const TextStyle(fontSize: 11, color: Colors.grey), overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
                         ],
                       ),
-                      // Tiga Tombol Utama di Header Transaksi
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -410,7 +464,6 @@ class _ReportScreenState extends State<ReportScreen> {
                         ],
                       ),
                       children: [
-                        // Daftar Item Layanan
                         ...details.map((d) => ListTile(
                           dense: true,
                           title: Text(d['treatments']['treatment']),
@@ -424,7 +477,6 @@ class _ReportScreenState extends State<ReportScreen> {
                             ],
                           ),
                         )),
-                        // Tombol Tambah Layanan di bagian bawah dropdown
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
                           child: OutlinedButton.icon(
@@ -443,7 +495,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // --- FUNGSI TAB LAINNYA TETAP SAMA ---
   Widget _buildTabRingkasan() {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -489,8 +540,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  void _showDownloadDialog() { /* Tetap memanggil fungsi dari PdfService */ }
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -498,6 +547,15 @@ class _ReportScreenState extends State<ReportScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Laporan Keuangan'),
+          // --- PERBAIKAN: Tombol Download Laporan PDF Dikembalikan di Sini ---
+          actions: [
+            if (_laporanData != null)
+              IconButton(
+                icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+                tooltip: 'Download Laporan PDF',
+                onPressed: _showDownloadDialog,
+              )
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Ringkasan'), Tab(text: 'Pemasukan'), Tab(text: 'Pengeluaran')]),
         ),
         body: Column(

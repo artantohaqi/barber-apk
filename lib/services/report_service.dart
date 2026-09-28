@@ -9,10 +9,10 @@ class ReportService {
       final startIso = start.toUtc().toIso8601String();
       final endIso = endOfDay.toUtc().toIso8601String();
 
-      // PERBAIKAN: Menambahkan pengambilan no_hp dan via_id
+      // PERBAIKAN: Menambahkan via_payments(via) untuk menarik nama metode pembayaran secara relasional
       final payments = await _supabase
           .from('payments')
-          .select('id, nama, no_hp, via_id, total_harga, jadwal, nama_nota, order_details(id, treatment_id, barber_id, jumlah, jum_harga, jum_komisi, treatments(treatment, harga, komisi), barbers(id, users(username)))')
+          .select('id, nama, no_hp, via_id, total_harga, jadwal, nama_nota, via_payments(via), order_details(id, treatment_id, barber_id, jumlah, jum_harga, jum_komisi, treatments(treatment, harga, komisi), barbers(id, users(username)))')
           .gte('jadwal', startIso)
           .lte('jadwal', endIso)
           .order('jadwal', ascending: false);
@@ -40,7 +40,7 @@ class ReportService {
     }
   }
 
-  // FUNGSI BARU 1: Edit Informasi Master Transaksi (Tanggal, Jam, Nama, Metode Pembayaran)
+  // FUNGSI 1: Edit Informasi Master Transaksi (Tanggal, Jam, Nama, Metode Pembayaran)
   Future<void> updateTransactionHeader(int paymentId, String nama, DateTime jadwal, int viaId) async {
     try {
       await _supabase.from('payments').update({
@@ -53,19 +53,17 @@ class ReportService {
     }
   }
 
-  // FUNGSI BARU 2: Menghapus Transaksi Secara Total
+  // FUNGSI 2: Menghapus Transaksi Secara Total
   Future<void> deleteTransaction(int paymentId) async {
     try {
-      // Hapus rincian layanannya terlebih dahulu untuk menghindari bentrok relasi
       await _supabase.from('order_details').delete().eq('payment_id', paymentId);
-      // Baru hapus nota utamanya
       await _supabase.from('payments').delete().eq('id', paymentId);
     } catch (e) {
       throw Exception('Gagal menghapus transaksi: $e');
     }
   }
 
-  // FUNGSI BARU 3: Tambah Layanan ke Transaksi yang Sudah Ada
+  // FUNGSI 3: Tambah Layanan ke Transaksi yang Sudah Ada
   Future<void> addTransactionItem({
     required int paymentId,
     required int barberId,
@@ -91,7 +89,7 @@ class ReportService {
     }
   }
 
-  // FUNGSI BARU 4: Hapus Layanan Spesifik
+  // FUNGSI 4: Hapus Layanan Spesifik
   Future<void> deleteTransactionItem(int paymentId, int orderDetailId) async {
     try {
       await _supabase.from('order_details').delete().eq('id', orderDetailId);
@@ -101,7 +99,7 @@ class ReportService {
     }
   }
 
-  // FUNGSI LAMA: Edit Layanan Spesifik (Hanya diubah untuk memanggil helper kalkulasi)
+  // FUNGSI 5: Edit Layanan Spesifik
   Future<void> editTransactionItem({
     required int paymentId,
     required int orderDetailId,
@@ -126,7 +124,7 @@ class ReportService {
     }
   }
 
-  // HELPER: Kalkulasi ulang total harga otomatis setiap ada perubahan item
+  // HELPER: Kalkulasi ulang total harga
   Future<void> _recalculateTotal(int paymentId) async {
     final allItems = await _supabase.from('order_details').select('jum_harga').eq('payment_id', paymentId);
     int newGrandTotal = allItems.fold(0, (sum, item) => sum + (item['jum_harga'] as int));

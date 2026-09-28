@@ -22,27 +22,35 @@ class PdfService {
 
     final customFormat = PdfPageFormat(80 * PdfPageFormat.mm, 105 * PdfPageFormat.mm, marginAll: 4 * PdfPageFormat.mm);
 
+    final logoImageBytes = await rootBundle.load('assets/images/logo.jpg');
+    final logoImage = pw.MemoryImage(logoImageBytes.buffer.asUint8List());
+
     pdf.addPage(
       pw.Page(
         pageFormat: customFormat, 
         build: (pw.Context context) {
           const double fSize = 9; 
-          const double fTitle = 14;
 
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Center(child: pw.Text('bintangss barbershop', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: fTitle))),
+              pw.Center(
+                child: pw.Image(logoImage, height: 40), 
+              ),
+              pw.SizedBox(height: 4),
               pw.Center(child: pw.Text('+62 895-6095-13838', style: const pw.TextStyle(fontSize: fSize))),
               pw.SizedBox(height: 6),
               pw.Divider(thickness: 1, color: PdfColors.grey400),
               pw.SizedBox(height: 4),
+              
               if (namaCustomer.isNotEmpty) pw.Text('Pelanggan : $namaCustomer', style: const pw.TextStyle(fontSize: fSize)),
               pw.Text('Tanggal : $tglString', style: const pw.TextStyle(fontSize: fSize)),
               pw.Text('Nota : $namaNota', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700)),
               pw.SizedBox(height: 4),
+              
               pw.Divider(thickness: 1, color: PdfColors.grey400),
               pw.SizedBox(height: 4),
+              
               pw.Expanded(
                 child: pw.ListView(
                   children: items.map((item) => pw.Column(
@@ -63,6 +71,7 @@ class PdfService {
                   )).toList(),
                 )
               ),
+              
               pw.Divider(thickness: 1, color: PdfColors.grey400),
               pw.SizedBox(height: 2),
               pw.Row(
@@ -97,7 +106,8 @@ class PdfService {
     List<String> headers = [];
     
     if (type == 'Pemasukan') {
-      headers = ['No', 'Tanggal', 'Pelanggan', 'Layanan', 'Barber', 'Nominal'];
+      // PERBAIKAN: Menambahkan kolom 'Metode'
+      headers = ['No', 'Tanggal', 'Pelanggan', 'Layanan', 'Barber', 'Metode', 'Nominal'];
       final List payments = data['detail_pemasukan'];
       var sortedPayments = List.from(payments)..sort((a, b) => DateTime.parse(a['jadwal']).compareTo(DateTime.parse(b['jadwal'])));
       
@@ -108,7 +118,11 @@ class PdfService {
         List details = p['order_details'];
         String layanan = details.map((d) => d['treatments']['treatment']).join(', ');
         String barber = details.map((d) => d['barbers']['users']['username']).toSet().join(', ');
-        tableData.add([(i++).toString(), tgl, p['nama'] ?? '-', layanan, barber, formatRp.format(p['total_harga'])]);
+        
+        // Menarik via_payment
+        String viaName = p['via_payments'] != null ? p['via_payments']['via'] : '-';
+
+        tableData.add([(i++).toString(), tgl, p['nama'] ?? '-', layanan, barber, viaName, formatRp.format(p['total_harga'])]);
       }
     } else if (type == 'Pengeluaran') {
       headers = ['No', 'Tanggal', 'Kategori', 'Keterangan', 'Nominal'];
@@ -124,7 +138,14 @@ class PdfService {
       headers = ['No', 'Tanggal', 'Keterangan', 'Pemasukan', 'Pengeluaran'];
       List<Map<String, dynamic>> combined = [];
       for (var p in data['detail_pemasukan']) {
-        combined.add({ 'date': DateTime.parse(p['jadwal']).toLocal(), 'desc': 'Pemasukan (Pelanggan: ${p['nama'] ?? '-'})', 'in': p['total_harga'], 'out': 0 });
+        // PERBAIKAN: Menambahkan Via Payment ke dalam keterangan
+        String viaName = p['via_payments'] != null ? p['via_payments']['via'] : '-';
+        combined.add({ 
+          'date': DateTime.parse(p['jadwal']).toLocal(), 
+          'desc': 'Pemasukan (Pelanggan: ${p['nama'] ?? '-'} | Via: $viaName)', 
+          'in': p['total_harga'], 
+          'out': 0 
+        });
       }
       for (var e in data['detail_pengeluaran']) {
         combined.add({ 'date': DateTime.parse(e['tanggal']).toLocal(), 'desc': 'Pengeluaran (${e['kategori']}) - ${e['keterangan'] ?? ''}', 'in': 0, 'out': e['harga'] });
@@ -189,7 +210,7 @@ class PdfService {
     await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save(), name: fileName);
   }
 
-  // 3. FUNGSI BARU: MENCETAK LAPORAN JADWAL BOOKING (Pindahan dari BookingService)
+  // 3. FUNGSI BARU: MENCETAK LAPORAN JADWAL BOOKING
   static Future<void> generateBookingReport({
     required List<Map<String, dynamic>> data,
     required DateTime start,
