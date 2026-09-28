@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart'; // TAMBAHAN: Import package intl untuk format titik ribuan
 import '../services/treatment_service.dart';
 
 class TreatmentScreen extends StatefulWidget {
@@ -12,6 +13,9 @@ class TreatmentScreen extends StatefulWidget {
 class _TreatmentScreenState extends State<TreatmentScreen> {
   final TreatmentService _treatmentService = TreatmentService();
   late Future<List<Map<String, dynamic>>> _treatmentsFuture;
+
+  // INISIALISASI FORMATTER RUPIAH
+  final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
   @override
   void initState() {
@@ -156,7 +160,8 @@ class _TreatmentScreenState extends State<TreatmentScreen> {
                     child: const Icon(Icons.cut, color: Colors.white, size: 20),
                   ),
                   title: Text(item['treatment'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('Rp ${item['harga']} | Komisi: Rp ${item['komisi']} | Waktu: ${item['waktu_menit']} mnt'),
+                  // PERBAIKAN: Format harga dan komisi dengan titik ribuan
+                  subtitle: Text('${formatRp.format(item['harga'])} | Komisi: ${formatRp.format(item['komisi'])} | Waktu: ${item['waktu_menit']} mnt'),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blueGrey),
                     onPressed: () => _showFormDialog(existingTreatment: item),

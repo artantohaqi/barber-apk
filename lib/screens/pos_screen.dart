@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // TAMBAHAN: Import package intl
 import '../providers/cart_provider.dart';
 import '../services/pos_service.dart';
 import 'checkout_screen.dart';
@@ -25,7 +26,7 @@ class _PosScreenState extends State<PosScreen> {
   @override
   void initState() {
     super.initState();
-    // PERBAIKAN: Bersihkan keranjang saat layar kasir baru dibuka (mencegah data lama tertinggal)
+    // Bersihkan keranjang saat layar kasir baru dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<CartProvider>(context, listen: false).clearCart();
     });
@@ -82,6 +83,9 @@ class _PosScreenState extends State<PosScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
+    // INISIALISASI FORMATTER RUPIAH
+    final formatRp = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Kasir (Pilih Layanan)')),
       body: Padding(
@@ -122,7 +126,8 @@ class _PosScreenState extends State<PosScreen> {
                   
                   return CheckboxListTile(
                     title: Text(t['treatment'], style: const TextStyle(fontSize: 14)),
-                    subtitle: Text('Rp${t['harga']}', style: const TextStyle(fontSize: 12, color: Colors.green)),
+                    // PERBAIKAN: Menerapkan format titik ribuan pada harga layanan
+                    subtitle: Text(formatRp.format(t['harga']), style: const TextStyle(fontSize: 12, color: Colors.green)),
                     value: isChecked,
                     dense: true,
                     activeColor: Colors.blueGrey,
@@ -171,7 +176,8 @@ class _PosScreenState extends State<PosScreen> {
                       return Card(
                         child: ListTile(
                           title: Text(item.treatmentName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('Barber: ${item.barberName} | Harga: Rp${item.harga} x ${item.jumlah}'),
+                          // PERBAIKAN: Menerapkan format titik ribuan pada item keranjang
+                          subtitle: Text('Barber: ${item.barberName} | Harga: ${formatRp.format(item.harga)} x ${item.jumlah}'),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () => cart.removeItem(index),
@@ -199,8 +205,9 @@ class _PosScreenState extends State<PosScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('Total Harga', style: TextStyle(fontSize: 14)),
+                          // PERBAIKAN: Menerapkan format titik ribuan pada Total Kasir
                           Text(
-                            'Rp ${cart.grandTotalHarga}', 
+                            formatRp.format(cart.grandTotalHarga), 
                             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blueGrey)
                           ),
                         ],
