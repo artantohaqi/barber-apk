@@ -12,8 +12,8 @@ void main() async {
 
   // Membangun koneksi ke Supabase
   await Supabase.initialize(
-    url: 'https://azfanpxgsesbczyxdxob.supabase.co',
-    publishableKey: 'sb_publishable_YukE_NKrMdF-sZfLW2elvQ_J6G4JN2F',
+    url: 'rahasia',
+    publishableKey: 'rahasia',
   );
 
   runApp(
